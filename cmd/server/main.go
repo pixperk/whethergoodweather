@@ -20,13 +20,10 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
-
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 	if geminiAPIKey == "" {
 		log.Fatal("GEMINI_API_KEY not set")
 	}
-
-	log.Printf("Loaded GEMINI_API_KEY: %s...", geminiAPIKey[:10])
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())

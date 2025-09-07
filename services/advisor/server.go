@@ -68,8 +68,8 @@ func (s *advisorService) Close() {
 	}
 }
 
-func (s *advisorService) geocodeCity(ctx context.Context, city *advisorpb.CityData, apiKey string) (float64, float64, error) {
-	// Simple hardcoded coordinates for testing - replace with proper geocoding later
+func (s *advisorService) geocodeCity(_ context.Context, city *advisorpb.CityData, apiKey string) (float64, float64, error) {
+
 	cityCoords := map[string][2]float64{
 		"New York":    {40.7128, -74.0060},
 		"London":      {51.5074, -0.1278},
@@ -130,7 +130,7 @@ func (s *advisorService) GetAdvice(ctx context.Context, req *advisorpb.AdvisorRe
 		}
 
 		weatherInfo := fmt.Sprintf("City: %s, Temp: %.1f°C, Condition: %s, Humidity: %d%%, Wind: %.1f m/s",
-			weatherResp.Location, weatherResp.Temperature, weatherResp.Description, weatherResp.Humidity, weatherResp.WindSpeed)
+			city.Location, weatherResp.Temperature, weatherResp.Description, weatherResp.Humidity, weatherResp.WindSpeed)
 		weatherData = append(weatherData, weatherInfo)
 	}
 
@@ -149,23 +149,45 @@ func (s *advisorService) StreamAdvice(req *advisorpb.AdvisorRequest, stream advi
 	defer timer.ObserveDuration()
 
 	var weatherData []string
+	var failedCities []string
+
 	for _, city := range req.Cities {
 		lat, lon, err := s.geocodeCity(stream.Context(), city, "")
 		if err != nil {
-			advisorRequests.WithLabelValues("error").Inc()
-			return fmt.Errorf("geocoding failed for %s: %v", city.Location, err)
+			failedCities = append(failedCities, fmt.Sprintf("%s (geocoding failed)", city.Location))
+			continue
 		}
 
 		weatherReq := &weatherpb.WeatherRequest{Latitude: lat, Longitude: lon}
 		weatherResp, err := s.weatherSvc.GetCurrentWeather(stream.Context(), weatherReq)
 		if err != nil {
-			advisorRequests.WithLabelValues("error").Inc()
-			return fmt.Errorf("weather request failed for %s: %v", city.Location, err)
+			failedCities = append(failedCities, fmt.Sprintf("%s (weather failed)", city.Location))
+			continue
 		}
 
 		weatherInfo := fmt.Sprintf("City: %s, Temp: %.1f°C, Condition: %s, Humidity: %d%%, Wind: %.1f m/s",
-			weatherResp.Location, weatherResp.Temperature, weatherResp.Description, weatherResp.Humidity, weatherResp.WindSpeed)
+			city.Location, weatherResp.Temperature, weatherResp.Description, weatherResp.Humidity, weatherResp.WindSpeed)
 		weatherData = append(weatherData, weatherInfo)
+	}
+
+	// If no cities succeeded, send a friendly message
+	if len(weatherData) == 0 {
+		message := "I couldn't get weather data for any cities. "
+		if len(failedCities) > 0 {
+			message += fmt.Sprintf("Failed cities: %s. ", strings.Join(failedCities, ", "))
+		}
+		message += "Please try again with different cities or check your connection."
+
+		err := stream.Send(&advisorpb.StreamAdviceResponse{
+			Chunk:      message,
+			IsComplete: true,
+		})
+		if err == nil {
+			advisorRequests.WithLabelValues("success").Inc()
+		} else {
+			advisorRequests.WithLabelValues("error").Inc()
+		}
+		return err
 	}
 
 	// Stream the advice generation
@@ -189,7 +211,7 @@ Include: summary, clothing advice, activity suggestions, warnings. Keep it conci
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		return "", fmt.Errorf("Gemini API failed: %v", err)
+		return "", fmt.Errorf("gemini API failed: %v", err)
 	}
 
 	if len(resp.Candidates) == 0 {

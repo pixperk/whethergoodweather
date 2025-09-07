@@ -6,6 +6,7 @@ build:
 	go build -o bin/server ./cmd/server
 	go build -o bin/client ./cmd/client
 	go build -o bin/stream-client ./cmd/stream-client
+	go build -o bin/weather-advisor ./cmd/cli
 
 run:
 	./bin/server
@@ -15,6 +16,9 @@ test:
 
 stream-test:
 	./bin/stream-client
+
+cli:
+	./bin/weather-advisor
 
 docker-build:
 	docker-compose build
