@@ -27,15 +27,16 @@ func main() {
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		log.Println("Metrics server on :2112")
-		log.Fatal(http.ListenAndServe(":2112", nil))
+		log.Println("Metrics server on :2113")
+		log.Fatal(http.ListenAndServe(":2113", nil))
 	}()
 
-	lis, err := net.Listen("tcp", ":8080")
+	lis, err := net.Listen("tcp", ":8082")
 	if err != nil {
 		log.Fatalf("Listen failed: %v", err)
 	}
 
+	log.Println("gRPC server starting on :8082")
 	s := grpc.NewServer()
 
 	weatherSvc := weather.NewWeatherService()

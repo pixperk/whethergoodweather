@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	serverAddr = "localhost:8080"
+	serverAddr = "localhost:8082"
 
 	// Available cities with their coordinates
 	availableCities = map[string][2]float64{
