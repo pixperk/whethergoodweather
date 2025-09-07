@@ -1,4 +1,4 @@
-# Whether good Weather?
+# Weather Advisor Microservices
 
 A distributed weather advisory system built with gRPC microservices, providing AI-powered weather insights and real-time streaming recommendations.
 
@@ -10,13 +10,13 @@ This project implements a microservices architecture with the following componen
 
 1. **Weather Service** - Retrieves current weather data from Open-Meteo API
 2. **Advisor Service** - Provides AI-powered weather analysis using Google Gemini
-3. **API Gateway** - Main server coordinating service communication
+3. **Main Server** - gRPC server hosting both services with metrics endpoint
 
 ### Infrastructure
 
-- **Prometheus** - Metrics collection and monitoring
-- **Grafana** - Data visualization and dashboards
-- **Docker Compose** - Container orchestration
+- **Prometheus** - Metrics collection and monitoring (port 9090)
+- **Grafana** - Data visualization and dashboards (port 3000)
+- **Docker Compose** - Container orchestration for monitoring stack
 - **gRPC** - Inter-service communication protocol
 
 ## Project Structure
@@ -31,7 +31,7 @@ This project implements a microservices architecture with the following componen
 ├── shared/
 │   └── proto/         # Protocol buffer definitions
 ├── grafana/           # Grafana configuration and dashboards
-├── docker-compose.yml # Multi-service deployment
+├── docker-compose.yml # Monitoring stack deployment
 └── prometheus.yml     # Metrics collection configuration
 ```
 
@@ -84,17 +84,25 @@ cd effinarounf
 
 ## Running the Application
 
-### Using Docker Compose (Recommended)
+### Hybrid Setup (Recommended)
 
-Start all services with monitoring:
+Start monitoring stack with Docker Compose:
 ```bash
 docker-compose up -d
 ```
 
 This launches:
-- Weather and Advisor services on port 8080
 - Prometheus on port 9090
 - Grafana on port 3000
+
+Then run the main server locally:
+```bash
+go run cmd/server/main.go
+```
+
+This starts:
+- gRPC server on port 8082
+- Metrics endpoint on port 2113
 
 ### Manual Development Setup
 
@@ -104,9 +112,8 @@ go run cmd/server/main.go
 ```
 
 2. Access services:
-- gRPC server: `localhost:8080`
-- Health check: `localhost:8080/health`
-- Metrics: `localhost:8080/metrics`
+- gRPC server: `localhost:8082`
+- Metrics endpoint: `localhost:2113/metrics`
 
 ## Usage
 
@@ -138,6 +145,7 @@ The system supports weather data for 15 major cities worldwide:
 #### Weather Service
 
 ```go
+conn, err := grpc.Dial("localhost:8082", grpc.WithInsecure())
 client := weatherpb.NewWeatherServiceClient(conn)
 req := &weatherpb.WeatherRequest{
     Latitude:  40.7128,
@@ -149,6 +157,7 @@ resp, err := client.GetCurrentWeather(ctx, req)
 #### Advisor Service
 
 ```go
+conn, err := grpc.Dial("localhost:8082", grpc.WithInsecure())
 client := advisorpb.NewAdvisorServiceClient(conn)
 req := &advisorpb.AdvisorRequest{
     Cities: []*advisorpb.CityData{
@@ -181,7 +190,7 @@ Key metrics collected:
 - `advisor_requests_total` - Total advisor requests
 - `advisor_request_duration_seconds` - AI processing time
 
-Access metrics at `http://localhost:8080/metrics`
+Access metrics at `http://localhost:2113/metrics`
 
 ### Grafana Dashboards
 
@@ -223,23 +232,51 @@ go build -o bin/cli cmd/cli/main.go
 ### Environment Variables
 
 - `GEMINI_API_KEY` - Google Gemini API key (required)
-- `PORT` - Server port (default: 8080)
-- `WEATHER_API_URL` - Open-Meteo API base URL
 
 ### Service Configuration
 
 Services are configured through:
 - Protocol buffer definitions in `shared/proto/`
-- Prometheus configuration in `prometheus.yml`
+- Prometheus configuration in `prometheus.yml` (scrapes localhost:2113)
 - Grafana datasources in `grafana/provisioning/`
+
+### Port Configuration
+
+Current port allocation:
+- **gRPC Server**: 8082
+- **Metrics Endpoint**: 2113
+- **Prometheus**: 9090
+- **Grafana**: 3000
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts**: If you see "bind: address already in use", check if other services are using ports 8082 or 2113
+2. **Metrics not showing**: Ensure the server is running and Prometheus is configured to scrape localhost:2113
+3. **Advisor service errors**: Check that GEMINI_API_KEY is set correctly
+
+### Monitoring Health
+
+Check service status:
+```bash
+# Test gRPC server
+go run cmd/cli/main.go cities
+
+# Test metrics endpoint
+curl http://localhost:2113/metrics
+
+# Check Prometheus targets
+curl http://localhost:9090/api/v1/targets
+```
 
 ## Error Handling
 
 The system implements robust error handling:
-- Graceful degradation when services are unavailable
-- Retry mechanisms for external API calls
+- Graceful degradation when external APIs are unavailable
+- Streaming error recovery without stopping the entire stream
 - Detailed error logging with structured formats
-- Health checks for service monitoring
+- Comprehensive metrics for monitoring service health
 
 ## Performance Considerations
 
@@ -247,7 +284,7 @@ The system implements robust error handling:
 - Streaming responses for real-time data
 - Metrics collection with minimal overhead
 - Efficient protobuf serialization
-- Resource-optimized Docker containers
+- Optimized Docker containers for monitoring stack
 
 ## Contributing
 
