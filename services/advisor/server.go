@@ -68,23 +68,8 @@ func (s *advisorService) Close() {
 	}
 }
 
-func (s *advisorService) geocodeCity(_ context.Context, city *advisorpb.CityData, apiKey string) (float64, float64, error) {
+func (s *advisorService) geocodeCity(_ context.Context, city *advisorpb.CityData) (float64, float64, error) {
 
-	cityCoords := map[string][2]float64{
-		"New York":    {40.7128, -74.0060},
-		"London":      {51.5074, -0.1278},
-		"Tokyo":       {35.6762, 139.6503},
-		"Paris":       {48.8566, 2.3522},
-		"Los Angeles": {34.0522, -118.2437},
-		"Chicago":     {41.8781, -87.6298},
-		"Sydney":      {-33.8688, 151.2093},
-	}
-
-	if coords, exists := cityCoords[city.Location]; exists {
-		return coords[0], coords[1], nil
-	}
-
-	// If not in hardcoded list, try the API
 	encodedQuery := url.QueryEscape(city.Location)
 	apiURL := fmt.Sprintf("https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1&language=en&format=json", encodedQuery)
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -116,7 +101,7 @@ func (s *advisorService) GetAdvice(ctx context.Context, req *advisorpb.AdvisorRe
 
 	var weatherData []string
 	for _, city := range req.Cities {
-		lat, lon, err := s.geocodeCity(ctx, city, "")
+		lat, lon, err := s.geocodeCity(ctx, city)
 		if err != nil {
 			advisorRequests.WithLabelValues("error").Inc()
 			return nil, fmt.Errorf("geocoding failed for %s: %v", city.Location, err)
@@ -152,7 +137,7 @@ func (s *advisorService) StreamAdvice(req *advisorpb.AdvisorRequest, stream advi
 	var failedCities []string
 
 	for _, city := range req.Cities {
-		lat, lon, err := s.geocodeCity(stream.Context(), city, "")
+		lat, lon, err := s.geocodeCity(stream.Context(), city)
 		if err != nil {
 			failedCities = append(failedCities, fmt.Sprintf("%s (geocoding failed)", city.Location))
 			continue
@@ -170,7 +155,6 @@ func (s *advisorService) StreamAdvice(req *advisorpb.AdvisorRequest, stream advi
 		weatherData = append(weatherData, weatherInfo)
 	}
 
-	// If no cities succeeded, send a friendly message
 	if len(weatherData) == 0 {
 		message := "I couldn't get weather data for any cities. "
 		if len(failedCities) > 0 {
@@ -202,12 +186,12 @@ func (s *advisorService) StreamAdvice(req *advisorpb.AdvisorRequest, stream advi
 }
 
 func (s *advisorService) generateAdvice(ctx context.Context, weatherData []string) (string, error) {
-	model := s.genaiClient.GenerativeModel("gemini-1.5-flash")
+	model := s.genaiClient.GenerativeModel("gemini-2.5-pro")
 	prompt := fmt.Sprintf(`Weather advisor. Based on this data provide practical advice:
 
 %s
 
-Include: summary, clothing advice, activity suggestions, warnings. Keep it concise.`, strings.Join(weatherData, "\n"))
+Include: summary, clothing advice, activity suggestions, places to visit if good weather, warnings. Keep it concise.`, strings.Join(weatherData, "\n"))
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
@@ -229,7 +213,7 @@ Include: summary, clothing advice, activity suggestions, warnings. Keep it conci
 }
 
 func (s *advisorService) streamAdviceGeneration(ctx context.Context, weatherData []string, stream advisorpb.AdvisorService_StreamAdviceServer) error {
-	model := s.genaiClient.GenerativeModel("gemini-1.5-flash")
+	model := s.genaiClient.GenerativeModel("gemini-2.5-pro")
 	prompt := fmt.Sprintf(`Weather advisor. Based on this data provide practical advice:
 
 %s

@@ -68,7 +68,6 @@ func (s *weatherService) GetCurrentWeather(ctx context.Context, req *weatherpb.W
 	timer := prometheus.NewTimer(weatherDuration)
 	defer timer.ObserveDuration()
 
-	// Use Open-Meteo API (free, no API key required)
 	url := fmt.Sprintf("https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&timezone=auto",
 		req.Latitude, req.Longitude)
 
