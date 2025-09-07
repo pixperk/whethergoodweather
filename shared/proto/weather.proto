@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package weather;
+option go_package = "shared/proto/weatherpb";
+
+message WeatherRequest {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+message WeatherResponse{
+    string location = 1;
+    string description = 2;
+    double temperature = 3;
+    double feels_like = 4;
+    double temp_min = 5;
+    double temp_max = 6;
+    int32 pressure = 7;
+    int32 humidity = 8;
+    double wind_speed = 9;
+    int32 wind_deg = 10;
+    int64 timestamp = 11;
+}
+
+service WeatherService {
+  rpc GetCurrentWeather(WeatherRequest) returns (WeatherResponse);
+}

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package advisor;
+option go_package = "shared/proto/advisorpb";
+
+message CityData{
+    string location = 1;
+    string state = 2;
+    string country = 3;
+}
+
+message AdvisorRequest{
+    repeated CityData cities = 1;
+}
+
+message AdvisorResponse{
+    string advice = 1;
+}
+
+message StreamAdviceResponse{
+    string chunk = 1;
+    bool is_complete = 2;
+}
+
+service AdvisorService {
+    rpc GetAdvice(AdvisorRequest) returns (AdvisorResponse);
+    rpc StreamAdvice(AdvisorRequest) returns (stream StreamAdviceResponse);
+}

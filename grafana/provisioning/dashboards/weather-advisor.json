@@ -1,0 +1,57 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Weather Advisor Metrics",
+    "tags": ["weather"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(weather_requests_total[1m])",
+            "legendFormat": "Weather Requests/sec"
+          },
+          {
+            "expr": "rate(advisor_requests_total[1m])",
+            "legendFormat": "Advisor Requests/sec"
+          }
+        ]
+      },
+      {
+        "title": "Success Rate",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(weather_requests_total{status=\"success\"}[1m]) / rate(weather_requests_total[1m]) * 100",
+            "legendFormat": "Weather Success %"
+          },
+          {
+            "expr": "rate(advisor_requests_total{status=\"success\"}[1m]) / rate(advisor_requests_total[1m]) * 100",
+            "legendFormat": "Advisor Success %"
+          }
+        ]
+      },
+      {
+        "title": "Response Time",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, weather_request_duration_seconds_bucket)",
+            "legendFormat": "Weather p95"
+          },
+          {
+            "expr": "histogram_quantile(0.95, advisor_request_duration_seconds_bucket)",
+            "legendFormat": "Advisor p95"
+          }
+        ]
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "5s"
+  }
+}
